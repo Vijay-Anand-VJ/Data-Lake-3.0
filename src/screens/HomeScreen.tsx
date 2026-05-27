@@ -209,6 +209,45 @@ export const HomeScreen: React.FC = () => {
         </View>
       )}
 
+      {/* Biometric Scan Trigger Buttons */}
+      {!scanResult && !isScanning && (
+        <View style={styles.actionButtonContainer}>
+          <TouchableOpacity
+            style={[styles.scanButton, { backgroundColor: colors.primary, borderRadius: borderRadius.md, marginBottom: 12 }]}
+            onPress={() => {
+              const challenges: ('blink' | 'smile' | 'turn_left')[] = ['blink', 'smile', 'turn_left'];
+              const randomChallenge = challenges[Math.floor(Math.random() * challenges.length)];
+              runSimulatedScan(randomChallenge, 'success');
+            }}
+          >
+            <Text style={[styles.scanButtonText, { fontSize: fontSize.md }]}>
+              Verify Identity (Enrolled Face)
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.scanButton,
+              {
+                backgroundColor: colors.card,
+                borderRadius: borderRadius.md,
+                borderWidth: 1.5,
+                borderColor: colors.border,
+              },
+            ]}
+            onPress={() => {
+              const challenges: ('blink' | 'smile' | 'turn_left')[] = ['blink', 'smile', 'turn_left'];
+              const randomChallenge = challenges[Math.floor(Math.random() * challenges.length)];
+              runSimulatedScan(randomChallenge, 'unknown');
+            }}
+          >
+            <Text style={[styles.scanButtonText, { color: colors.text, fontSize: fontSize.md }]}>
+              Test Spoof Rejection (Unknown Face)
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Face Match Result Slide-Up Card */}
       {scanResult && (
         <View style={[styles.resultCard, { backgroundColor: colors.card, borderRadius: borderRadius.xl }]}>
@@ -405,6 +444,26 @@ const styles = StyleSheet.create({
   resetButtonText: {
     color: '#FFF',
     fontWeight: 'bold',
+  },
+  actionButtonContainer: {
+    width: '100%',
+    marginVertical: 10,
+  },
+  scanButton: {
+    width: '100%',
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  scanButtonText: {
+    color: '#FFF',
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
   },
 });
 export default HomeScreen;
