@@ -241,51 +241,6 @@ export const HomeScreen: React.FC = () => {
         </View>
       )}
 
-      {/* Emulator Simulator Control Drawer */}
-      <View style={styles.simulatorDrawer}>
-        <TouchableOpacity
-          style={[styles.drawerToggle, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => setShowSimulator(!showSimulator)}
-        >
-          <Text style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: 'bold' }}>
-            {showSimulator ? 'Hide Simulator Tools ▲' : 'Show Simulator Tools ▼'}
-          </Text>
-        </TouchableOpacity>
-
-        {showSimulator && (
-          <View style={[styles.drawerPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.drawerTitle, { color: colors.text, fontSize: fontSize.xs }]}>
-              HACKATHON EMULATOR / SIMULATOR TOOLKIT
-            </Text>
-            <View style={styles.simButtonGrid}>
-              <TouchableOpacity
-                style={[styles.simButton, { backgroundColor: colors.success }]}
-                onPress={() => runSimulatedScan('blink', 'success')}
-              >
-                <Text style={styles.simButtonText}>Blink + Verify ID</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.simButton, { backgroundColor: colors.warning }]}
-                onPress={() => runSimulatedScan('smile', 'success')}
-              >
-                <Text style={styles.simButtonText}>Smile + Verify ID</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.simButton, { backgroundColor: colors.primary }]}
-                onPress={() => runSimulatedScan('turn_left', 'success')}
-              >
-                <Text style={styles.simButtonText}>Turn Left + Verify ID</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.simButton, { backgroundColor: colors.error }]}
-                onPress={() => runSimulatedScan('blink', 'unknown')}
-              >
-                <Text style={styles.simButtonText}>Verify Stranger</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-      </View>
     </View>
   );
 };
@@ -450,45 +405,6 @@ const styles = StyleSheet.create({
   resetButtonText: {
     color: '#FFF',
     fontWeight: 'bold',
-  },
-  simulatorDrawer: {
-    width: '100%',
-    marginBottom: 20,
-  },
-  drawerToggle: {
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 8,
-  },
-  drawerPanel: {
-    borderWidth: 1,
-    borderRadius: 8,
-    marginTop: 8,
-    padding: 12,
-  },
-  drawerTitle: {
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  simButtonGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  simButton: {
-    width: '48%',
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: 6,
-    marginVertical: 4,
-  },
-  simButtonText: {
-    color: '#FFF',
-    fontWeight: 'bold',
-    fontSize: 12,
   },
 });
 export default HomeScreen;
