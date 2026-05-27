@@ -4,9 +4,9 @@ import { getPendingLogs, markAsSynced, purgeSyncedLogs } from './DatabaseService
 class SyncService {
   private isSyncing = false;
   private unsubscribe: (() => void) | null = null;
-  
+
   // 1. Replace this with your Google Firebase Project ID from the Firebase Console
-  private firebaseProjectId = 'your-firebase-project-id';
+  private firebaseProjectId = 'data-lake-c0d95';
 
   /**
    * Initializes the network listener to trigger synchronization on connection recovery.
@@ -20,7 +20,7 @@ class SyncService {
     this.unsubscribe = NetInfo.addEventListener(state => {
       const isOnline = state.isConnected && state.isInternetReachable !== false;
       console.log(`[SyncService] Connection state changed. Online: ${isOnline}`);
-      
+
       if (isOnline) {
         this.syncPendingLogs().catch(err => {
           console.error('[SyncService] Automated background sync failed:', err);
@@ -70,12 +70,12 @@ class SyncService {
         syncSuccess = true;
       } else {
         console.log(`[SyncService] Found ${pendingLogs.length} pending logs. Pushing to Firebase Firestore REST API...`);
-        
+
         try {
           // Push logs concurrently to Firebase collection 'attendance_logs'
           const promises = pendingLogs.map(async (log) => {
             const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${this.firebaseProjectId}/databases/(default)/documents/attendance_logs`;
-            
+
             // Map flat SQL log types to Firestore REST typed JSON format
             const body = {
               fields: {
@@ -115,7 +115,7 @@ class SyncService {
 
       if (syncSuccess) {
         console.log('[SyncService] Ingestion sync completed. Updating local database records...');
-        
+
         // Mark each synced log in SQLite database
         for (const log of pendingLogs) {
           if (log.id !== undefined) {
