@@ -26,10 +26,22 @@ allprojects {
         mavenCentral()
     }
 
-    // Automatically intercept and remove JCenter/Bintray to prevent CI build timeouts and errors
-    afterEvaluate { project ->
-        project.repositories.removeIf { repo ->
-            repo instanceof MavenArtifactRepository && (repo.url.toString().contains("jcenter") || repo.url.toString().contains("bintray"))
+    // Automatically intercept and remove JCenter/Bintray safely to prevent CI build timeouts and errors
+    if (project.state.executed) {
+        def defunct = project.repositories.findAll { repo ->
+            repo.hasProperty('url') && (repo.url.toString().contains("jcenter") || repo.url.toString().contains("bintray"))
+        }
+        defunct.each { repo ->
+            project.repositories.remove(repo)
+        }
+    } else {
+        project.afterEvaluate { p ->
+            def defunct = p.repositories.findAll { repo ->
+                repo.hasProperty('url') && (repo.url.toString().contains("jcenter") || repo.url.toString().contains("bintray"))
+            }
+            defunct.each { repo ->
+                p.repositories.remove(repo)
+            }
         }
     }
 }

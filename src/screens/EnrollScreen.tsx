@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,37 +12,38 @@ import {
   Dimensions,
 } from 'react-native';
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
+import RNFS from 'react-native-fs';
 import NetInfo from '@react-native-community/netinfo';
 import { useAppTheme } from '../theme/theme';
 import { enrollFace } from '../services/FaceRecognitionService';
 import StatusBadge from '../components/StatusBadge';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 const ROLES = ['Employee', 'Administrator', 'Contractor'];
 
 /**
- * EnrollScreen providing user inputs (name, role) and camera snapshot
- * to securely record custom biometric face signatures.
+ * EnrollScreen providing user inputs (name, role) and real camera capture
+ * to securely record custom biometric face signatures offline.
  */
 export const EnrollScreen: React.FC = () => {
   const { colors, spacing, borderRadius, fontSize } = useAppTheme();
   
-  // Camera Permission states
+  // Camera reference & permission states
+  const cameraRef = useRef<any>(null);
   const { hasPermission, requestPermission } = useCameraPermission();
-  const device = useCameraDevice('front');
-
-  // Input states
+  const device = useCameraDevice('front'); // front-facing camera for enrollment
+  
+  // Form input states
   const [name, setName] = useState('');
   const [role, setRole] = useState('Employee');
+  
+  // Core processing states
   const [isEnrolling, setIsEnrolling] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
-
-  // Success indicator state
   const [showSuccessCard, setShowSuccessCard] = useState(false);
   const [lastEnrolledUser, setLastEnrolledUser] = useState({ name: '', role: '' });
 
-  // Network connection subscription
+  // Subscribe to connection updates
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(state => {
       setIsOnline(!!state.isConnected && state.isInternetReachable !== false);
@@ -50,42 +51,75 @@ export const EnrollScreen: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // Request permissions on mount
+  // Request permissions on mount if missing
   useEffect(() => {
     if (!hasPermission) {
       requestPermission();
     }
-  }, [hasPermission]);
+  }, [hasPermission, requestPermission]);
 
   /**
-   * Triggers biometric extraction and sqlite registration
+   * Captures a real photo using Vision Camera,
+   * reads file as base64 using react-native-fs,
+   * runs TFLite inference to generate a 128D embedding,
+   * encrypts it using native AES-256 keys, and registers inside SQLite.
    */
   const handleEnrollSubmit = async () => {
+    // 1. Validation Checks
     if (!name.trim()) {
       Alert.alert('Validation Error', 'Please enter employee name before proceeding.');
+      return;
+    }
+
+    if (!hasPermission) {
+      Alert.alert(
+        'Permission Blocked',
+        'Camera permission is required to capture face signatures. Please enable it in Settings.'
+      );
+      return;
+    }
+
+    if (!cameraRef.current) {
+      Alert.alert('Camera Error', 'Camera is not fully initialized. Please wait a moment.');
       return;
     }
 
     setIsEnrolling(true);
     
     try {
-      // Create a mock base64 profile representing a biometric frame
-      // This is a valid, single-pixel PNG base64, perfect for running inference
-      const sampleFaceBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+      console.log('[EnrollScreen] Capturing face signature photo...');
+      const photo = await cameraRef.current.takePhoto({
+        flash: 'off',
+        enableShutterSound: false,
+      });
 
-      // Call service to run TFLite, encrypt with AES-256, and save in SQLite
-      await enrollFace(name.trim(), role, sampleFaceBase64);
+      console.log(`[EnrollScreen] File captured at path: ${photo.path}`);
 
-      // Save state for success overlay
+      // Read physical file from cache directory as Base64 string
+      const base64 = await RNFS.readFile(photo.path, 'base64');
+
+      console.log('[EnrollScreen] processing FaceNet and SQLite injection...');
+      await enrollFace(name.trim(), role, base64);
+
+      // Save credentials for the success card
       setLastEnrolledUser({ name: name.trim(), role });
       setShowSuccessCard(true);
 
-      // Reset inputs
+      // Clean inputs
       setName('');
       setRole('Employee');
+
+      // Asynchronously unlink captured temp photo to conserve user storage
+      RNFS.unlink(photo.path).catch(err => {
+        console.warn(`[EnrollScreen] Could not unlink temp photo at ${photo.path}:`, err);
+      });
+
     } catch (error: any) {
-      console.error('[EnrollScreen] Enrollment failed:', error);
-      Alert.alert('Enrollment Exception', `Could not save facial signature: ${error.message}`);
+      console.error('[EnrollScreen] Biometric enrollment failed:', error);
+      Alert.alert(
+        'Enrollment Exception',
+        `Could not save facial signature: ${error.message || error}`
+      );
     } finally {
       setIsEnrolling(false);
     }
@@ -97,7 +131,7 @@ export const EnrollScreen: React.FC = () => {
       contentContainerStyle={styles.scrollContent}
       keyboardShouldPersistTaps="handled"
     >
-      {/* Floating Offline Badge */}
+      {/* Floating Network Badge */}
       <View style={styles.floatingHeader}>
         <StatusBadge status={isOnline ? 'synced' : 'offline'} />
       </View>
@@ -110,29 +144,41 @@ export const EnrollScreen: React.FC = () => {
         Securely enroll local facial signatures offline. Data is AES-256 encrypted before local SQLite storage.
       </Text>
 
-      {/* Camera Viewfinder Preview */}
+      {/* Camera Viewfinder Preview with Circular Face Guide */}
       <View style={[styles.cameraPreviewContainer, { borderColor: colors.border, borderRadius: borderRadius.xl }]}>
         {hasPermission && device ? (
           <Camera
-            style={StyleSheet.absoluteFill}
-            device={device}
-            isActive={!showSuccessCard && !isEnrolling}
+            {...({
+              ref: cameraRef,
+              style: StyleSheet.absoluteFill,
+              device,
+              isActive: !showSuccessCard && !isEnrolling,
+              photo: true,
+            } as any)}
           />
         ) : (
           <View style={styles.noCamera}>
             <Text style={[styles.noCameraText, { color: colors.textMuted, fontSize: fontSize.xs }]}>
-              {hasPermission ? 'Loading Front Camera...' : 'Camera Access Disabled'}
+              {hasPermission ? 'Loading Front Camera Viewfinder...' : 'Camera Access Blocked'}
             </Text>
+            {!hasPermission && (
+              <TouchableOpacity
+                style={[styles.permissionBtn, { backgroundColor: colors.primary, borderRadius: borderRadius.sm }]}
+                onPress={requestPermission}
+              >
+                <Text style={styles.permissionBtnText}>Grant Camera Access</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
         
-        {/* Transparent Frame Guide */}
+        {/* Futuristic Transparent Circular Alignment Guide */}
         <View style={styles.frameGuide} pointerEvents="none">
           <View style={[styles.circleMask, { borderColor: colors.primary }]} />
         </View>
       </View>
 
-      {/* Form Fields */}
+      {/* Enrollment Credentials Form */}
       <View style={[styles.formCard, { backgroundColor: colors.card, borderRadius: borderRadius.lg }]}>
         <Text style={[styles.fieldLabel, { color: colors.textMuted, fontSize: fontSize.xs }]}>
           FULL EMPLOYEE NAME
@@ -159,7 +205,7 @@ export const EnrollScreen: React.FC = () => {
           ASSIGNED AUTHORIZATION ROLE
         </Text>
         
-        {/* Segmented Select Role Picker */}
+        {/* Segmented Select Role Picker Row */}
         <View style={styles.rolePickerRow}>
           {ROLES.map(r => {
             const isSelected = role === r;
@@ -212,12 +258,12 @@ export const EnrollScreen: React.FC = () => {
         )}
       </View>
 
-      {/* Success Modal Overlay Card */}
+      {/* Successful Registration Capsule Modal */}
       {showSuccessCard && (
         <View style={[styles.successOverlay, { backgroundColor: colors.card, borderRadius: borderRadius.xl }]}>
           <Text style={[styles.successTitle, { color: colors.success }]}>✓ Registration Complete</Text>
           <Text style={[styles.successBody, { color: colors.text }]}>
-            Successfully enrolled biometric face vectors for **{lastEnrolledUser.name}** as an authorized **{lastEnrolledUser.role}**.
+            Successfully enrolled biometric face vectors for <Text style={styles.boldText}>{lastEnrolledUser.name}</Text> as an authorized <Text style={styles.boldText}>{lastEnrolledUser.role}</Text>.
           </Text>
           <TouchableOpacity
             style={[styles.successCloseBtn, { backgroundColor: colors.primary, borderRadius: borderRadius.md }]}
@@ -273,9 +319,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#0F172A',
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 20,
   },
   noCameraText: {
     fontWeight: '500',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  permissionBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  permissionBtnText: {
+    color: '#FFF',
+    fontWeight: 'bold',
   },
   frameGuide: {
     ...StyleSheet.absoluteFill,
@@ -300,31 +357,42 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     fontWeight: '800',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
     marginBottom: 8,
   },
   inputField: {
     width: '100%',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1.5,
     fontWeight: '500',
   },
   rolePickerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
-    marginTop: 4,
-    marginBottom: 10,
+    marginBottom: 20,
   },
   rolePickerItem: {
     flex: 1,
     marginHorizontal: 4,
-    paddingVertical: 10,
+    paddingVertical: 12,
     alignItems: 'center',
-    borderWidth: 1,
+    justifyContent: 'center',
+    borderWidth: 1.5,
   },
   rolePickerText: {
+    fontWeight: '700',
+  },
+  loaderContainer: {
+    width: '100%',
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loaderText: {
+    marginLeft: 10,
     fontWeight: 'bold',
   },
   submitButton: {
@@ -332,53 +400,52 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 15,
   },
   submitButtonText: {
     color: '#FFF',
     fontWeight: 'bold',
   },
-  loaderContainer: {
-    flexDirection: 'row',
+  successOverlay: {
+    position: 'absolute',
+    top: '30%',
+    left: 20,
+    right: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
+    elevation: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 20,
-  },
-  loaderText: {
-    marginLeft: 10,
-    fontWeight: '500',
-  },
-  successOverlay: {
-    padding: 20,
-    width: '100%',
-    marginTop: 20,
-    alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(59, 109, 17, 0.2)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
+    borderColor: 'rgba(255,255,255,0.05)',
   },
   successTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   successBody: {
-    fontSize: 14,
+    fontSize: 15,
+    lineHeight: 22,
     textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 15,
+    marginBottom: 20,
+    fontWeight: '500',
+  },
+  boldText: {
+    fontWeight: 'bold',
   },
   successCloseBtn: {
-    paddingHorizontal: 24,
-    paddingVertical: 10,
+    width: '60%',
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   successCloseText: {
     color: '#FFF',
     fontWeight: 'bold',
   },
 });
+
 export default EnrollScreen;
