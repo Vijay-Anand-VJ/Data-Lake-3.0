@@ -19,3 +19,17 @@ buildscript {
 }
 
 apply plugin: "com.facebook.react.rootproject"
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    // Automatically intercept and remove JCenter/Bintray to prevent CI build timeouts and errors
+    afterEvaluate { project ->
+        project.repositories.removeIf { repo ->
+            repo instanceof MavenArtifactRepository && (repo.url.toString().contains("jcenter") || repo.url.toString().contains("bintray"))
+        }
+    }
+}

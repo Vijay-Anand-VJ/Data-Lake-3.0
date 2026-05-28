@@ -19,7 +19,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-level: '20'
+          node-version: '20'
           cache: 'npm'
 
       # 3. Setup JDK 17 (standard for React Native 0.85.3)
@@ -49,7 +49,7 @@ jobs:
       - name: Build Android Debug APK
         run: |
           cd android
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon -PreactNativeArchitectures=x86_64
 
       # 9. Upload the compiled APK artifact
       - name: Upload Debug APK Artifact
