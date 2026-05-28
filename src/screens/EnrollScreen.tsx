@@ -12,7 +12,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
-import RNFS from 'react-native-fs';
+import * as RNFS from 'react-native-fs';
 import NetInfo from '@react-native-community/netinfo';
 import { useAppTheme } from '../theme/theme';
 import { enrollFace } from '../services/FaceRecognitionService';
